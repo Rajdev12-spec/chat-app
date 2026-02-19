@@ -17,10 +17,8 @@ const protect = asyncWrapper(async (req, res, next) => {
   if (!token) {
     throw new AppError("Access token is required.", 401);
   }
-  console.log("token: " , token)
 
   let decoded;
-  console.log('decoded :', decoded);
 
   try {
     decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
