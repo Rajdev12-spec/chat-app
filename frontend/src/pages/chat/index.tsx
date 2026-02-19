@@ -1,37 +1,68 @@
-import type React from "react"
-import { useState } from "react"
-import { useGetMessageQuery } from "../../services/mesage.service";
-import { useGetAllUsersQuery, useGetProfileQuery } from "../../services/user.service";
-import { useAppDispatch } from "../../hooks/redux";
+import type React from "react";
+import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
+import ChatHeeader from "../../components/chat/chat-header";
+import ChatSideBar from "../../components/chat/chat-side-bar";
+import MessageList from "../../components/chat/message-list";
+import SendMessageBox from "../../components/chat/send-message-box";
 import { logout } from "../../features/authSlice";
+import { useAppDispatch } from "../../hooks/redux";
 import { useSignOutMutation } from "../../services/auth.service";
+import { useCreateConversationMutation } from "../../services/conversation.service";
+import { useGetMessageQuery, useSendMessageMutation } from "../../services/mesage.service";
+import { useGetAllUsersQuery, useGetProfileQuery } from "../../services/user.service";
+export const socket = io("http://localhost:5000", {
+    withCredentials: true,
+});
 
 const Chat = () => {
     const [text, setText] = useState("");
-    const [messageList, setMessageList] = useState([]);
     const dispatch = useAppDispatch();
     const [signOut] = useSignOutMutation();
     const [conversationId, setConversationId] = useState<string | null>(null);
 
-    const { isLoading, data } = useGetMessageQuery(conversationId!, {
+    const { data } = useGetMessageQuery(conversationId!, {
         skip: !conversationId
     });
+    const { data: usersData } = useGetAllUsersQuery();
+    const { data: profileData } = useGetProfileQuery();
+    const [createConversation] = useCreateConversationMutation()
+    const [sendMessage, { isLoading: isSendingMessage }] = useSendMessageMutation()
+    const [messages, setMessages] = useState<any[]>([]);
 
-    const { isLoading: userLoading, data: usersData } = useGetAllUsersQuery();
-    console.log('usersData :', usersData);
+    useEffect(() => {
+        if (data?.messages) {
+            setMessages(data.messages);
+        }
+    }, [data]);
 
+    useEffect(() => {
+        if (conversationId) {
+            socket.emit("joinConversation", conversationId);
+        }
+    }, [conversationId]);
 
+    useEffect(() => {
+        socket.on("newMessage", (newMessage) => {
+            setMessages((prev) => [...prev, newMessage]);
+        });
 
-    const { isLoading: profileLoading, data: profileData } = useGetProfileQuery();
+        return () => {
+            socket.off("newMessage");
+        };
+    }, []);
+
     const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
-        console.log('e :', e);
         e.preventDefault();
         const trimmedText = text.trim();
         if (!trimmedText) {
             return;
         }
-        setMessageList((prev) => [...prev, text])
-        setText("")
+        sendMessage({ conversationId: conversationId!, text: trimmedText })
+            .unwrap()
+            .then(() => {
+                setText("");
+            });
     }
 
     const handleTextChagne = (e: React.SyntheticEvent<HTMLInputElement>) => {
@@ -42,72 +73,33 @@ const Chat = () => {
         dispatch(logout())
     }
 
+    const handleUserClick = (userId: string) => {
+        createConversation(userId)
+            .unwrap()
+            .then((response) => {
+                setConversationId(response?.conversation?._id || null);
+            })
+            .catch((error) => {
+                console.error("Failed to create conversation:", error);
+            });
+    }
+
     return (
-        <div className="h-screen">
+        <div className="h-screen flex bg-gray-100">
+            <ChatSideBar usersData={usersData?.data} handleLogOut={handleLogOut} handleUserClick={handleUserClick} />
 
-            <div className="h-full flex">
-                <div className="w-1/4  bg-gray-100 p-4">
-                    <h2 className="font-bold mb-4">Users</h2>
-                    {usersData?.data?.map(user => {
-                        return <p>{user?.firstName}</p>
-                    })
-                    }
-                </div>
-                <div>
-                    <button onClick={handleLogOut}>LogOut</button>
-                </div>
-                {/* Chat Section */}
-                <div className="flex flex-col flex-1">
+            {/* CHAT AREA */}
+            <div className="flex flex-1 flex-col">
+                <ChatHeeader />
+                <MessageList conversationId={conversationId} messages={messages} profileData={profileData?.data} />
 
-                    {/* Messages */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50">
-                        <p className="flex justify-end">
-                            <span className="bg-green-500 text-white px-3 py-1 rounded-lg">
-                                Hi
-                            </span>
-                        </p>
+                {/* Input */}
+                {
+                    conversationId && <SendMessageBox handleSubmit={handleSubmit} text={text} isSendingMessage={isSendingMessage} handleTextChange={handleTextChagne} />
+                }
 
-                        <p>
-                            <span className="bg-gray-300 px-3 py-1 rounded-lg">
-                                Hello
-                            </span>
-                        </p>
-
-                        {messageList?.map((msg, index) => (
-                            <p key={index}>
-                                <span className="bg-gray-300 px-3 py-1 rounded-lg">
-                                    {msg}
-                                </span>
-                            </p>
-                        ))}
-                    </div>
-
-                    {/* Input Area */}
-                    <div className="p-4 bg-white">
-                        <form onSubmit={handleSubmit}>
-                            <div className="flex gap-2">
-                                <input
-                                    placeholder="Enter your message..."
-                                    className="border rounded w-full px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-400"
-                                    name="text"
-                                    autoFocus
-                                    value={text}
-                                    onChange={handleTextChagne}
-                                />
-                                <button
-                                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                                    type="submit"
-                                >
-                                    Send
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-
-                </div>
             </div>
         </div>
-
     )
 }
 

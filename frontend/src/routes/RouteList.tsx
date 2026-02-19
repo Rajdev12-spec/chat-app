@@ -4,12 +4,14 @@ import PrivateLayout from "../layouts/PrivateLayout"
 import SignIn from "../pages/auth/SignIn"
 import Chat from "../pages/chat"
 import { PATH_LIST } from "../constants/path"
+import SignUp from "../pages/auth/SignUp"
 
 const RouteList = () => {
 
     return (
         <Routes>
             <Route path={PATH_LIST.SIGN_IN} element={<SignIn />} />
+            <Route path={PATH_LIST.SIGN_UP} element={<SignUp />} />
             <Route element={<PersistLogin />}>
                 <Route element={<PrivateLayout />}>
                     <Route path={PATH_LIST.CHAT} element={<Chat />} />

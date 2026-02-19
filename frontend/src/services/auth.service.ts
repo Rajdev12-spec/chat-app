@@ -18,6 +18,13 @@ export const authApi = createApi({
         body,
       }),
     }),
+    signUp: builder.mutation<SignInResponse, SignInPayload>({
+      query: (body) => ({
+        url: "/auth/sign-up",
+        method: "POST",
+        body,
+      }),
+    }),
     signOut: builder.mutation<any, void>({
       query: () => ({
         url: '/auth/sign-out',
@@ -28,4 +35,4 @@ export const authApi = createApi({
   }),
 })
 
-export const { useGetRefreshTokenQuery, useSignInMutation, useSignOutMutation } = authApi
+export const { useGetRefreshTokenQuery, useSignInMutation, useSignOutMutation, useSignUpMutation } = authApi
