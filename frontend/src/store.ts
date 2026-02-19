@@ -3,6 +3,7 @@ import { messageApi } from "./services/mesage.service";
 import { userApi } from "./services/user.service";
 import authReducer from  "./features/authSlice"
 import { authApi } from "./services/auth.service";
+import { conversationApi } from "./services/conversation.service";
 
 export const store = configureStore({
     reducer: {
@@ -10,9 +11,10 @@ export const store = configureStore({
         [authApi.reducerPath]: authApi.reducer,
         [messageApi.reducerPath]: messageApi.reducer,
         [userApi.reducerPath]: userApi.reducer,
+        [conversationApi.reducerPath]: conversationApi.reducer,
     },
     middleware: (getDefaultMiddleware) =>
-        getDefaultMiddleware().concat(authApi.middleware, messageApi.middleware, userApi.middleware)
+        getDefaultMiddleware().concat(authApi.middleware, messageApi.middleware, userApi.middleware, conversationApi.middleware),
 })
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

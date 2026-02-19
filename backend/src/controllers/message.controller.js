@@ -4,47 +4,54 @@ const AppError = require("../utils/AppError");
 const asyncWrapper = require("../utils/asyncWrapper");
 
 const sendMessage = asyncWrapper(async (req, res) => {
-    const { conversationId, text, image } = req.body;
-    const senderId = req.userId;
+  const { conversationId, text, image } = req.body;
+  const senderId = req.userId;
 
-    if (!conversationId) {
-        throw new AppError("Conversation ID is required", 400);
-    }
+  if (!conversationId) {
+    throw new AppError("Conversation ID is required", 400);
+  }
 
-    if (!text && !image) {
-        throw new AppError("Message content is required", 400);
-    }
+  if (!text && !image) {
+    throw new AppError("Message content is required", 400);
+  }
 
-    // Make sure conversation exists & user belongs to it
-    const conversation = await Conversation.findOne({
-        _id: conversationId,
-        participants: senderId,
-    });
+  // Make sure conversation exists & user belongs to it
+  const conversation = await Conversation.findOne({
+    _id: conversationId,
+    participants: senderId,
+  });
 
-    if (!conversation) {
-        throw new AppError("Conversation not found or not authorized", 404);
-    }
+  if (!conversation) {
+    throw new AppError("Conversation not found or not authorized", 404);
+  }
 
-    const message = await Message.create({
-        conversation: conversationId,
-        sender: senderId,
-        text,
-        image,
-        seenBy: [senderId]
-    });
+  let message = await Message.create({
+    conversation: conversationId,
+    sender: senderId,
+    text,
+    image,
+    seenBy: [senderId]
+  });
 
-    conversation.lastMessage = message._id;
-    await conversation.save();
+  message = await message.populate("sender", "firstName lastName avatar");
 
-    const populatedMessage = await message.populate(
-        "sender",
-        "firstName lastName avatar"
-    );
+  const io = req.app.get("io");
 
-    res.status(201).json({
-        success: true,
-        message: populatedMessage,
-    });
+  io.to(conversationId).emit("newMessage", message);
+
+
+  conversation.lastMessage = message._id;
+  await conversation.save();
+
+  const populatedMessage = await message.populate(
+    "sender",
+    "firstName lastName avatar"
+  );
+
+  res.status(201).json({
+    success: true,
+    message: populatedMessage,
+  });
 });
 
 const getMessages = asyncWrapper(async (req, res) => {
