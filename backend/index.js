@@ -24,11 +24,14 @@ const io = new Server(server, {
 app.set("io", io);
 
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-
   socket.on("joinConversation", (conversationId) => {
+    socket.rooms.forEach((room) => {
+      if (room !== socket.id) {
+        socket.leave(room);
+      }
+    });
+
     socket.join(conversationId);
-    console.log("Joined room:", conversationId);
   });
 
   socket.on("disconnect", () => {

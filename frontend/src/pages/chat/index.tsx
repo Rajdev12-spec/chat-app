@@ -9,98 +9,134 @@ import { logout } from "../../features/authSlice";
 import { useAppDispatch } from "../../hooks/redux";
 import { useSignOutMutation } from "../../services/auth.service";
 import { useCreateConversationMutation } from "../../services/conversation.service";
-import { useGetMessageQuery, useSendMessageMutation } from "../../services/mesage.service";
-import { useGetAllUsersQuery, useGetProfileQuery } from "../../services/user.service";
+import {
+    messageApi,
+    useGetMessageQuery,
+    useSendMessageMutation
+} from "../../services/mesage.service";
+import {
+    useGetAllUsersQuery,
+    useGetProfileQuery
+} from "../../services/user.service";
+import type { UserData } from "../../interfaces/auth.interface";
+
 export const socket = io("http://localhost:5000", {
     withCredentials: true,
 });
 
 const Chat = () => {
-    const [text, setText] = useState("");
     const dispatch = useAppDispatch();
-    const [signOut] = useSignOutMutation();
+    const [text, setText] = useState("");
     const [conversationId, setConversationId] = useState<string | null>(null);
-
-    const { data } = useGetMessageQuery(conversationId!, {
-        skip: !conversationId
-    });
+    const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
     const { data: usersData } = useGetAllUsersQuery();
     const { data: profileData } = useGetProfileQuery();
-    const [createConversation] = useCreateConversationMutation()
-    const [sendMessage, { isLoading: isSendingMessage }] = useSendMessageMutation()
-    const [messages, setMessages] = useState<any[]>([]);
+    const [createConversation] = useCreateConversationMutation();
+    const [sendMessage, { isLoading: isSendingMessage }] =
+        useSendMessageMutation();
+    const [signOut] = useSignOutMutation();
+    const { data } = useGetMessageQuery(conversationId as string, {
+        skip: !conversationId,
+        refetchOnMountOrArgChange: true,
+    });
+    const messages = data?.messages ?? [];
 
     useEffect(() => {
-        if (data?.messages) {
-            setMessages(data.messages);
-        }
-    }, [data]);
+        if (!conversationId) return;
 
-    useEffect(() => {
-        if (conversationId) {
-            socket.emit("joinConversation", conversationId);
-        }
+        socket.emit("joinConversation", conversationId);
+
+        return () => {
+            socket.emit("leaveConversation", conversationId);
+        };
     }, [conversationId]);
 
     useEffect(() => {
-        socket.on("newMessage", (newMessage) => {
-            setMessages((prev) => [...prev, newMessage]);
-        });
+        if (!conversationId) return;
+
+        const handler = (newMessage: any) => {
+            if (newMessage.conversation !== conversationId) return;
+
+            dispatch(
+                messageApi.util.updateQueryData(
+                    "getMessage",
+                    conversationId,
+                    (draft: any) => {
+                        draft.messages.push(newMessage);
+                    }
+                )
+            );
+        };
+
+        socket.on("newMessage", handler);
 
         return () => {
-            socket.off("newMessage");
+            socket.off("newMessage", handler);
         };
-    }, []);
+    }, [conversationId, dispatch]);
 
     const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         const trimmedText = text.trim();
-        if (!trimmedText) {
-            return;
-        }
-        sendMessage({ conversationId: conversationId!, text: trimmedText })
+        if (!trimmedText || !conversationId) return;
+
+        sendMessage({
+            conversationId,
+            text: trimmedText,
+        })
             .unwrap()
             .then(() => {
                 setText("");
             });
-    }
+    };
 
-    const handleTextChagne = (e: React.SyntheticEvent<HTMLInputElement>) => {
-        setText(e.currentTarget.value)
-    }
+    const handleTextChange = (e: React.SyntheticEvent<HTMLInputElement>) => {
+        setText(e.currentTarget.value);
+    };
+
     const handleLogOut = () => {
-        signOut()
-        dispatch(logout())
-    }
+        signOut();
+        dispatch(logout());
+    };
 
-    const handleUserClick = (userId: string) => {
-        createConversation(userId)
+    const handleUserClick = (user: UserData) => {
+        createConversation(user?._id)
             .unwrap()
             .then((response) => {
+                setSelectedUser(user);
                 setConversationId(response?.conversation?._id || null);
             })
             .catch((error) => {
                 console.error("Failed to create conversation:", error);
             });
-    }
+    };
 
     return (
         <div className="h-screen flex bg-gray-100">
-            <ChatSideBar usersData={usersData?.data} handleLogOut={handleLogOut} handleUserClick={handleUserClick} />
+            <ChatSideBar
+                usersData={usersData?.data}
+                handleLogOut={handleLogOut}
+                handleUserClick={handleUserClick}
+            />
 
-            {/* CHAT AREA */}
             <div className="flex flex-1 flex-col">
-                <ChatHeeader />
-                <MessageList conversationId={conversationId} messages={messages} profileData={profileData?.data} />
-
-                {/* Input */}
-                {
-                    conversationId && <SendMessageBox handleSubmit={handleSubmit} text={text} isSendingMessage={isSendingMessage} handleTextChange={handleTextChagne} />
-                }
-
+                {selectedUser && <ChatHeeader selectedUser={selectedUser} />}
+                <MessageList
+                    conversationId={conversationId}
+                    messages={messages}
+                    profileData={profileData?.data}
+                />
+                {conversationId && (
+                    <SendMessageBox
+                        handleSubmit={handleSubmit}
+                        text={text}
+                        isSendingMessage={isSendingMessage}
+                        handleTextChange={handleTextChange}
+                    />
+                )}
             </div>
         </div>
-    )
-}
+    );
+};
 
-export default Chat
+export default Chat;
