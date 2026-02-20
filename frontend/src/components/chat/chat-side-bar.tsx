@@ -3,7 +3,7 @@ import deaultProfile from "../../assets/images/default-user.png";
 
 interface ChatSideBarProps {
     usersData: UserData[];
-    handleUserClick: (userId: string) => void;
+    handleUserClick: (userId: UserData) => void;
     handleLogOut: () => void;
 }
 
@@ -23,7 +23,7 @@ const ChatSideBar = ({ usersData, handleUserClick, handleLogOut }: ChatSideBarPr
                 {usersData?.map((user) => (
                     <div
                         key={user._id}
-                        onClick={() => handleUserClick(user._id)}
+                        onClick={() => handleUserClick(user)}
                         className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 transition cursor-pointer group"
                     >
                         <img

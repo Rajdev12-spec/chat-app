@@ -18,6 +18,7 @@ import {
     useGetAllUsersQuery,
     useGetProfileQuery
 } from "../../services/user.service";
+import type { UserData } from "../../interfaces/auth.interface";
 
 export const socket = io("http://localhost:5000", {
     withCredentials: true,
@@ -27,20 +28,18 @@ const Chat = () => {
     const dispatch = useAppDispatch();
     const [text, setText] = useState("");
     const [conversationId, setConversationId] = useState<string | null>(null);
-
-    const { data } = useGetMessageQuery(conversationId as string, {
-        skip: !conversationId,
-        refetchOnMountOrArgChange: true,
-    });
-
-    const messages = data?.messages ?? [];
+    const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
     const { data: usersData } = useGetAllUsersQuery();
     const { data: profileData } = useGetProfileQuery();
     const [createConversation] = useCreateConversationMutation();
     const [sendMessage, { isLoading: isSendingMessage }] =
         useSendMessageMutation();
     const [signOut] = useSignOutMutation();
-
+    const { data } = useGetMessageQuery(conversationId as string, {
+        skip: !conversationId,
+        refetchOnMountOrArgChange: true,
+    });
+    const messages = data?.messages ?? [];
 
     useEffect(() => {
         if (!conversationId) return;
@@ -100,10 +99,11 @@ const Chat = () => {
         dispatch(logout());
     };
 
-    const handleUserClick = (userId: string) => {
-        createConversation(userId)
+    const handleUserClick = (user: UserData) => {
+        createConversation(user?._id)
             .unwrap()
             .then((response) => {
+                setSelectedUser(user);
                 setConversationId(response?.conversation?._id || null);
             })
             .catch((error) => {
@@ -120,14 +120,12 @@ const Chat = () => {
             />
 
             <div className="flex flex-1 flex-col">
-                <ChatHeeader />
-
+                {selectedUser && <ChatHeeader selectedUser={selectedUser} />}
                 <MessageList
                     conversationId={conversationId}
                     messages={messages}
                     profileData={profileData?.data}
                 />
-
                 {conversationId && (
                     <SendMessageBox
                         handleSubmit={handleSubmit}
